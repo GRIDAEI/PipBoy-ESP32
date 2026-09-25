@@ -8,22 +8,17 @@
 #include <LittleFS.h>
 #include "imgs/pip.h"
 #include "modules/audio.h"
-#include "modules/rtc.h"
 #include "modules/rotSwitch.h"
 
 
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
 
-const int FNTBTN1 = 38;
-const int FNTBTN2 = 47;
-const int FNTBTN3 = 14;
 
 const int FNTLED1 = 48;
 const int FNTLED2 = 11;
 const int FNTLED3 = 1;
-
-
+const int FNTBTN_ADC_PIN = 2; 
 bool fntBtn1Prev = HIGH;
 bool fntBtn2Prev = HIGH;
 bool fntBtn3Prev = HIGH;
@@ -36,11 +31,12 @@ int downbtn =3;
 bool downclk = false;
 bool downPrev = HIGH;
 
-int vibr_pin = 10;
+const int VIBR1_PIN = 9;
+const int VIBR2_PIN = 10;
 int vibr_ms = 80;
 
-int rtc_sda = 8;
-int rtc_scl = 9;
+int rtc_sda = 40; // temporary placeholder, user might need to adjust if RTC moved, originally 8
+int rtc_scl = 41; // temporary placeholder, user might need to adjust if RTC moved, originally 9
 
 // int selectBtn = 41;
 bool selectPrev = HIGH;
@@ -50,13 +46,15 @@ uint32_t COLOR_GREEN = F3_GREEN;
 ESP32Encoder encoder;
 
 void vibrate(int ms = vibr_ms) {
-    digitalWrite(vibr_pin, HIGH);
+    digitalWrite(VIBR1_PIN, HIGH);
+    digitalWrite(VIBR2_PIN, HIGH);
     vibroEnd = millis() + ms;
 }
 
 void handleVibro() {
     if (vibroEnd > 0 && millis() >= vibroEnd) {
-        digitalWrite(vibr_pin, LOW);
+        digitalWrite(VIBR1_PIN, LOW);
+        digitalWrite(VIBR2_PIN, LOW);
         vibroEnd = 0;
     }
 }
@@ -154,18 +152,20 @@ void setup() {
   
   unsigned long intro_start = millis(); 
 
-    pinMode(FNTBTN1, INPUT_PULLUP);
-    pinMode(FNTBTN2, INPUT_PULLUP);
-    pinMode(FNTBTN3, INPUT_PULLUP);
 
-    pinMode(FNTLED1, OUTPUT);
-    pinMode(FNTLED2, OUTPUT);
-    pinMode(FNTLED3, OUTPUT);
-    updateFrontLeds(section_id);
+  pinMode(FNTLED1, OUTPUT);
+  pinMode(FNTLED2, OUTPUT);
+  pinMode(FNTLED3, OUTPUT);
+  updateFrontLeds(section_id);
+  
+  pinMode(FNTBTN_ADC_PIN, INPUT);
+  
   pinMode(upbtn, INPUT_PULLUP);
   pinMode(downbtn, INPUT_PULLUP);
-  pinMode(vibr_pin, OUTPUT);
-  digitalWrite(vibr_pin, LOW);
+  pinMode(VIBR1_PIN, OUTPUT);
+  pinMode(VIBR2_PIN, OUTPUT);
+  digitalWrite(VIBR1_PIN, LOW);
+  digitalWrite(VIBR2_PIN, LOW);
 
 
   ESP32Encoder::useInternalWeakPullResistors = puType::up;
@@ -192,10 +192,24 @@ void setup() {
 
 }
 
+
+
 void handleFrontButtons() {
-    bool btn1Now = digitalRead(FNTBTN1);
-    bool btn2Now = digitalRead(FNTBTN2);
-    bool btn3Now = digitalRead(FNTBTN3);
+    int adcValue = analogRead(FNTBTN_ADC_PIN);
+
+    bool btn1Now = HIGH;
+    bool btn2Now = HIGH;
+    bool btn3Now = HIGH;
+
+    if (adcValue >4000) {
+        btn1Now = LOW; 
+    } 
+    else if (adcValue >= 2500 && adcValue < 2700) {
+        btn2Now = LOW;
+    } 
+    else if (adcValue >= 1400 && adcValue < 1600) {
+        btn3Now = LOW;
+    }
 
     // Reakcja na kliknięcie przycisku 1 (Przejście do STATS)
     if (fntBtn1Prev == HIGH && btn1Now == LOW) {
@@ -203,6 +217,7 @@ void handleFrontButtons() {
             change_section(0);
             updateFrontLeds(0);
             playSound("/switch_opt.wav");
+            vibrate(40);
         }
     }
     
@@ -212,6 +227,7 @@ void handleFrontButtons() {
             change_section(1);
             updateFrontLeds(1);
             playSound("/switch_opt.wav");
+            vibrate(40);
         }
     }
 
@@ -221,6 +237,7 @@ void handleFrontButtons() {
             change_section(2);
             updateFrontLeds(2);
             playSound("/switch_opt.wav");
+            vibrate(40);
         }
     }
 
@@ -235,10 +252,14 @@ bool is_screen_dimmed = false;
 const unsigned long DIM_TIMEOUT = 15000; // 15 sekund bezczynności -> tryb oszczędzania
 
 void loop() {
+    handleVibro();
     static unsigned long lastPrint = 0;
 if (millis() - lastPrint > 500) {
     lastPrint = millis();
 }
+
+
+
   handleAudio();
   bool upNow = digitalRead(upbtn);
   bool downNow = digitalRead(downbtn);
@@ -258,6 +279,7 @@ if (millis() - lastPrint > 500) {
     if (newPos != -1) {
         playSound("/deck_ui_side_menu_fly_in.wav");
         set_screen(newPos);
+        vibrate(80);
     }
     
   static int32_t lastEncoderCount = 0;               
@@ -273,7 +295,13 @@ if (millis() - lastPrint > 500) {
           lastEncoderCount--;  
       }
   }
+  int valA = digitalRead(16);
+  int valB = digitalRead(17);
 
+  Serial.print("Pin A (16): ");
+  Serial.print(valA);
+  Serial.print(" | Pin B (17): ");
+  Serial.println(valB);
     currentRenderEncoderCount = lastEncoderCount;
 
     bool input_detected = false;
@@ -301,15 +329,20 @@ if (millis() - lastPrint > 500) {
   if(upPrev == HIGH && upNow == LOW){
       current_up();
       playSound("/deck_ui_navigation.wav");
+      vibrate(20);
   }
   if(downPrev == HIGH && downNow == LOW){
       current_down();
       playSound("/deck_ui_navigation.wav");
+      vibrate(20);
   }
   if(selectPrev == HIGH && selectNow == LOW){
       press_current_select();
       playSound("/switch_opt.wav");
+      vibrate(40);
   }
+  
+  handleFrontButtons();
 
   if (section_id == 0 && screen_id == 0) {
       objStatusScreen.update();

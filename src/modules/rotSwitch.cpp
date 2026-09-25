@@ -6,24 +6,24 @@ RotSwitch::RotSwitch(int pin) {
 
 // NOWA FUNKCJA: Tłumaczy odczyt ADC na pozycję 0-4 (lub -1 w razie błędu)
 int RotSwitch::getSwitchPosition(int adcValue) {
-    // Pozycja 0: ~0V (odczyty to równe 0)
-    if (adcValue < 400) {
+    // Pozycja 0: odczyty 4095
+    if (adcValue >= 3800) {
         return 0;
     }
-    // Pozycja 1: odczyty ok. 750-920
-    else if (adcValue >= 700 && adcValue <= 1000) {
+    // Pozycja 1: odczyty ok. 2870-3190
+    else if (adcValue >= 2700 && adcValue <= 3400) {
         return 1;
     }
-    // Pozycja 2: odczyty ok. 1600-1660
-    else if (adcValue >= 1500 && adcValue <= 1800) {
+    // Pozycja 2: odczyty ok. 1910-2080
+    else if (adcValue >= 1700 && adcValue <= 2300) {
         return 2;
     }
-    // Pozycja 3: odczyty ok. 2470-2720
-    else if (adcValue >= 2400 && adcValue <= 2800) {
+    // Pozycja 3: odczyty ok. 880-1100
+    else if (adcValue >= 700 && adcValue <= 1300) {
         return 3;
     }
-    // Pozycja 4: odczyty ok. 3990-4060
-    else if (adcValue >= 3800) {
+    // Pozycja 4: ~0V (odczyty 0-50)
+    else if (adcValue < 400) {
         return 4;
     }
 

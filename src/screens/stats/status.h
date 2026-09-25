@@ -12,7 +12,6 @@
 #include "../../imgs/minka2.h"
 #include "../../imgs/minka3.h"
 #include "../../imgs/minka4.h"
-#include "modules/rtc.h"
 #include "special.h"
 
 enum Screen { SCR_STN, SCR_RAD, SCR_DIFF, SCR_ZEG, SCR_UST, SCR_NUFN,SCR_GMF};
