@@ -474,7 +474,6 @@ void Status::statusSelect() {
                 ust_edit = false; 
                 player.level = settings[3].value;
                 drawTopBar();
-            } else if (ust_cursor == 1) {
             } else if (ust_cursor == 1) { 
                 ust_edit = false;
                 

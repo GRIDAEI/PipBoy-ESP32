@@ -38,7 +38,7 @@ int vibr_ms = 80;
 int rtc_sda = 40; // temporary placeholder, user might need to adjust if RTC moved, originally 8
 int rtc_scl = 41; // temporary placeholder, user might need to adjust if RTC moved, originally 9
 
-// int selectBtn = 41;
+int selectBtn = 47;
 bool selectPrev = HIGH;
 unsigned long vibroEnd = 0;
 uint32_t COLOR_BG = F3_BG;
@@ -164,6 +164,7 @@ void setup() {
   pinMode(downbtn, INPUT_PULLUP);
   pinMode(VIBR1_PIN, OUTPUT);
   pinMode(VIBR2_PIN, OUTPUT);
+  pinMode(selectBtn, INPUT_PULLUP);
   digitalWrite(VIBR1_PIN, LOW);
   digitalWrite(VIBR2_PIN, LOW);
 
@@ -263,7 +264,7 @@ if (millis() - lastPrint > 500) {
   handleAudio();
   bool upNow = digitalRead(upbtn);
   bool downNow = digitalRead(downbtn);
-  bool selectNow = HIGH;
+  bool selectNow = digitalRead(selectBtn);
 
     if (Serial.available() > 0) {
         char c = Serial.read();
@@ -297,11 +298,6 @@ if (millis() - lastPrint > 500) {
   }
   int valA = digitalRead(16);
   int valB = digitalRead(17);
-
-  Serial.print("Pin A (16): ");
-  Serial.print(valA);
-  Serial.print(" | Pin B (17): ");
-  Serial.println(valB);
     currentRenderEncoderCount = lastEncoderCount;
 
     bool input_detected = false;
