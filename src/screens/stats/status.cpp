@@ -24,7 +24,7 @@ Status::Status() {
     settings[1] = { "MOTYW",      0, 0,   2, "THEM" };
     settings[2] = { "IMIE",       0, 0,   0, ""     };
     settings[3] = { "LEVEL",      1, 1, 100, ""     };
-    settings[4] = { "ZDROWIE",    1, 1, 500, ""     };
+    settings[4] = { "ZDROWIE",    player.hp, 1, 500, ""     };
     settings[5] = { "AP",         1, 1,  99, ""     };
     settings[6] = { "JASNOSC",   80, 0, 100, "%"    };
     settings[7] = { "GLOSNOSC",  50, 0, 100, "%"    };
@@ -46,6 +46,8 @@ void Status::loadFromPreferences() {
     } else {
         prefs.putInt("player_hp", player.hp); // Zapisz domyślne, jeśli brak
     }
+    temp_hp = player.hp;
+    settings[4].value = player.hp;
     
     // Wczytaj Imię
     if (prefs.isKey("playerName")) {
@@ -121,13 +123,16 @@ void Status::loadSprites() {
     restoreTimeFromMemory();
 }
 void drawBar(int x,int y, int weight){
+    if (weight < 0) weight = 0;
+    if (weight > 100) weight = 100;
     tft.fillRect(x,y,70,16, COLOR_BG);
     tft.fillRect(x,y,70,16, COLOR_GREEN);
     tft.fillRect(x+1,y+1,67,14, COLOR_BG);
     tft.fillRect(x+2,y+2,64*weight/100,12, COLOR_GREEN);
 }
 void Status::drawThemAll(){
-    int weight = temp_hp * 100 / player.maxHp;
+    int hp = stn_edit ? temp_hp : player.hp;
+    int weight = hp * 100 / player.maxHp;
     drawBar(205,50,weight);
     drawBar(100,100,weight);
     drawBar(310,100,weight);    
@@ -163,6 +168,16 @@ void Status::changeCursor(int d) {
             if (temp_hp < 0) temp_hp = 0;
             if (temp_hp > player.maxHp) temp_hp = player.maxHp;
             
+            int weight = temp_hp * 100 / player.maxHp;
+            int picid = 0;
+            switch (weight) {
+                case 85 ... 100: picid = 1; break;
+                case 65 ... 84:  picid = 2; break;
+                case 35 ... 64:  picid = 3; break;
+                case 15 ... 34:  picid = 4; break;
+                case 0 ... 14:   picid = 5; break;
+            }
+            sprite[picid].pushRotateZoom(&tft, 240, 108, 0, 0.8, 0.8, COLOR_BG);
             drawThemAll(); // Rysuj ponownie, by zaktualizować paski
         }
     }
@@ -237,11 +252,22 @@ void Status::drawScreen() {
 }
 
 void Status::drawScreenSTN() {
-    sprite[0].pushRotateZoom(&tft, 240, 170, 0, 0.8, 0.8); 
+    // 1. Najpierw czytamy ile ma zdrowia
+    if (!stn_edit) {
+        Preferences prefs;
+        prefs.begin("pipboy", true);
+        if (prefs.isKey("player_hp")) {
+            player.hp = prefs.getInt("player_hp");
+        }
+        prefs.end();
+        temp_hp = player.hp;
+        settings[4].value = player.hp;
+    }
 
-    // Użyj temp_hp jeśli jesteś w trybie edycji, w przeciwnym razie player.hp
     int hp_do_wyswietlenia = stn_edit ? temp_hp : player.hp;
     int weight = hp_do_wyswietlenia * 100 / player.maxHp;
+
+    sprite[0].pushRotateZoom(&tft, 240, 170, 0, 0.8, 0.8); 
     
     int picid = 0;
     switch (weight) {
@@ -253,6 +279,8 @@ void Status::drawScreenSTN() {
     }
 
     sprite[picid].pushRotateZoom(&tft, 240, 108, 0, 0.8, 0.8, COLOR_BG);
+
+    // 2. A potem tworzymy paski
     drawThemAll();
 }
 
@@ -442,10 +470,12 @@ void Status::statusSelect() {
             stn_edit = false;            // Zakończ edycję
             action_pool = SCR_NUFN; // Wróć sterowaniem do zakładek (TopBar)
             player.hp = temp_hp;
+            settings[4].value = player.hp;
             
             Preferences prefs;
             prefs.begin("pipboy", false);
             prefs.putInt("player_hp", player.hp);
+            prefs.putInt("UST_4", settings[4].value);
             prefs.end();
 
             drawTopBar();                // Aktualizacja TopBaru (HP w tekście)
@@ -473,6 +503,16 @@ void Status::statusSelect() {
             } else if (ust_cursor == 3) {
                 ust_edit = false; 
                 player.level = settings[3].value;
+                drawTopBar();
+            } else if (ust_cursor == 4) {
+                ust_edit = false;
+                player.hp = settings[4].value;
+                temp_hp = player.hp;
+                Preferences prefs;
+                prefs.begin("pipboy", false);
+                prefs.putInt("player_hp", player.hp);
+                prefs.putInt("UST_4", settings[4].value);
+                prefs.end();
                 drawTopBar();
             } else if (ust_cursor == 1) { 
                 ust_edit = false;

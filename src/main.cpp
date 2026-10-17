@@ -202,14 +202,14 @@ void handleFrontButtons() {
     bool btn2Now = HIGH;
     bool btn3Now = HIGH;
 
-    if (adcValue >4000) {
-        btn1Now = LOW; 
+    if (adcValue > 3800) {
+        btn3Now = LOW; 
     } 
-    else if (adcValue >= 2500 && adcValue < 2700) {
+    else if (adcValue >= 2400 && adcValue < 2800) {
         btn2Now = LOW;
     } 
-    else if (adcValue >= 1400 && adcValue < 1600) {
-        btn3Now = LOW;
+    else if (adcValue >= 1300 && adcValue < 1700) {
+        btn1Now = LOW;
     }
 
     // Reakcja na kliknięcie przycisku 1 (Przejście do STATS)
@@ -218,7 +218,7 @@ void handleFrontButtons() {
             change_section(0);
             updateFrontLeds(0);
             playSound("/switch_opt.wav");
-            vibrate(40);
+            vibrate(20);
         }
     }
     
@@ -228,7 +228,7 @@ void handleFrontButtons() {
             change_section(1);
             updateFrontLeds(1);
             playSound("/switch_opt.wav");
-            vibrate(40);
+            vibrate(20);
         }
     }
 
@@ -238,7 +238,7 @@ void handleFrontButtons() {
             change_section(2);
             updateFrontLeds(2);
             playSound("/switch_opt.wav");
-            vibrate(40);
+            vibrate(20);
         }
     }
 
