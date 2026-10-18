@@ -1,44 +1,67 @@
 #include <Arduino.h>
+#include <SPI.h>
+#include <SD.h>
 #include "AudioGeneratorWAV.h"
-#include "AudioOutputI2S.h"
+#include "AudioGeneratorMP3.h"     // Dodane do obsługi plików MP3 z Radia
 #include "AudioFileSourceLittleFS.h"
-#include "AudioOutputMixer.h" // Dodajemy mikser
+#include "AudioFileSourceSD.h"     // Dodane do obsługi muzyki z karty SD
+#include "AudioOutputI2S.h"
+#include "AudioOutputMixer.h"
 
-// Definiujemy, ile dźwięków maksymalnie może grać jednocześnie
-// 3 to bezpieczna wartość dla pamięci RAM w ESP
 #define MAX_VOICES 3 
 
 AudioOutputI2S *outI2S;
 AudioOutputMixer *mixer;
 
-// Zamiast pojedynczych zmiennych, tworzymy tablice (kanały)
+// Kanały dla dźwięków UI (WAV z LittleFS)
 AudioGeneratorWAV *wav[MAX_VOICES];
 AudioFileSourceLittleFS *file[MAX_VOICES];
 AudioOutputMixerStub *stub[MAX_VOICES];
 
+// Dedykowany kanał dla Radia (MP3 z karty SD)
+AudioGeneratorMP3 *mp3;
+AudioFileSourceSD *fileSD;
+AudioOutputMixerStub *stubRadio;
+
 void initAudio() {
     outI2S = new AudioOutputI2S();
-    outI2S->SetPinout(6, 7, 8);
-    outI2S->SetGain(0.6); // Główna głośność całego wyjścia (może być wyższa)
+    outI2S->SetPinout(6, 7, 8); // Twoje piny I2S
+    outI2S->SetGain(0.6); 
 
-    // 1. ZWIĘKSZ BUFOR MIKSERA
-    // Zmieniamy z 32 na 128 lub 256. Daje to procesorowi więcej czasu 
-    // na doczytanie danych z LittleFS, zapobiegając przerywaniu.
     mixer = new AudioOutputMixer(128, outI2S);
 
+    // Inicjalizacja 3 kanałów do dźwięków systemowych
     for (int i = 0; i < MAX_VOICES; i++) {
         wav[i] = nullptr;
         file[i] = nullptr;
         stub[i] = mixer->NewInput();
-        
-        // 2. DRASTYCZNIE ZMNIEJSZ GŁOŚNOŚĆ KANAŁÓW
-        // Jeśli masz MAX_VOICES = 3, ustaw kanały na 0.3
-        // (0.3 + 0.3 + 0.3 = 0.9, co jest bezpiecznie poniżej limitu 1.0)
         stub[i]->SetGain(0.25); 
     }
+
+    // Inicjalizacja kanału Radia
+    mp3 = nullptr;
+    fileSD = nullptr;
+    stubRadio = mixer->NewInput();
+    stubRadio->SetGain(0.4); // Głośność Radia
+    pinMode(15, OUTPUT);
+    digitalWrite(15, HIGH);
+
+    // 2. Przygotowanie pinu CS dla karty SD
+    pinMode(21, OUTPUT);
+    digitalWrite(21, HIGH);
+
+    // 3. Uruchomienie szyny SPI (SCK=18, MISO=14, MOSI=12, CS=21)
+    SPI.begin(18, 14, 12, 21); 
+
+    // 4. Inicjalizacja z ograniczoną prędkością zegara do 4 MHz (bardzo pomaga przy współdzielonym SPI)
+    if (!SD.begin(21, SPI, 4000000)) {
+        Serial.println("AUDIO: Brak karty SD lub blad odczytu!");
+    } else {
+        Serial.println("AUDIO: Karta SD wykryta poprawnie.");
+    }
 }
+
 void playSound(const char* name) {
-    // 1. Szukamy wolnego kanału (który aktualnie nic nie odtwarza)
     int freeChannel = -1;
     for (int i = 0; i < MAX_VOICES; i++) {
         if (wav[i] == nullptr || !wav[i]->isRunning()) {
@@ -46,42 +69,64 @@ void playSound(const char* name) {
             break;
         }
     }
+    if (freeChannel == -1) return; 
 
-    // 2. Zabezpieczenie: jeśli wszystkie kanały są zajęte, ignorujemy klik
-    // (przy krótkich kliknięciach i 3 kanałach rzadko się to zdarza)
-    if (freeChannel == -1) {
-        return; 
-    }
-
-    // 3. Czystka na znalezionym kanale (upewnienie się, że zwalniamy pamięć)
     if (wav[freeChannel]) { delete wav[freeChannel]; wav[freeChannel] = nullptr; }
     if (file[freeChannel]) { delete file[freeChannel]; file[freeChannel] = nullptr; }
 
-    // 4. Odtwarzanie nowego pliku na wolnym kanale
     file[freeChannel] = new AudioFileSourceLittleFS(name);
     if (!file[freeChannel]->isOpen()) {
-        Serial.printf("BŁĄD AUDIO: Nie można otworzyć pliku %s!\n", name);
         delete file[freeChannel]; 
         file[freeChannel] = nullptr;
         return;
     }
 
     wav[freeChannel] = new AudioGeneratorWAV();
-    
-    // Zamiast bezpośrednio do "out", wysyłamy dźwięk do "stub'a" (wejścia miksera)
     wav[freeChannel]->begin(file[freeChannel], stub[freeChannel]);
 }
 
+// --- NOWE FUNKCJE OBSŁUGI RADIA ---
+void playRadio(const char* path) {
+    if (mp3 && mp3->isRunning()) {
+        mp3->stop();
+    }
+    if (mp3) { delete mp3; mp3 = nullptr; }
+    if (fileSD) { delete fileSD; fileSD = nullptr; }
+
+    fileSD = new AudioFileSourceSD(path);
+    mp3 = new AudioGeneratorMP3();
+    mp3->begin(fileSD, stubRadio);
+}
+
+void stopRadio() {
+    if (mp3 && mp3->isRunning()) {
+        mp3->stop();
+    }
+}
+
+bool isRadioPlaying() {
+    return (mp3 && mp3->isRunning());
+}
+
+// Główna pętla obsługująca dekodowanie
 void handleAudio() {
-    // Mikser sam się napędza, ale musimy "kręcić" każdym aktywnym generatorem WAV
+    // 1. Zrzut buforów dla UI
     for (int i = 0; i < MAX_VOICES; i++) {
         if (wav[i] && wav[i]->isRunning()) {
             if (!wav[i]->loop()) {
                 wav[i]->stop();
-                // KLUCZOWE: Zwalniamy pamięć po zakończeniu utworu na danym kanale!
                 delete wav[i]; wav[i] = nullptr;
                 delete file[i]; file[i] = nullptr;
             }
+        }
+    }
+
+    // 2. Zrzut buforów dla Radia
+    if (mp3 && mp3->isRunning()) {
+        if (!mp3->loop()) {
+            mp3->stop();
+            delete mp3; mp3 = nullptr;
+            delete fileSD; fileSD = nullptr;
         }
     }
 }

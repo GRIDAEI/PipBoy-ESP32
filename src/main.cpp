@@ -83,6 +83,14 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println("Startt!!!");
+
+  pinMode(15, OUTPUT);
+  digitalWrite(15, HIGH); // HIGH = wyłącz nasłuch SPI dla TFT
+  
+  pinMode(21, OUTPUT);
+  digitalWrite(21, HIGH); // HIGH = wyłącz nasłuch SPI dla SD
+
+  initAudio();    
   
   set_green();
   init_all_stats();
@@ -96,8 +104,7 @@ void setup() {
     load_all_sprites(); 
   } 
   tft.fillScreen(COLOR_BG);
-  initAudio();    
-  
+
   auto waitWithAudio = [](unsigned long ms) {
       unsigned long start = millis();
       while (millis() - start < ms) {

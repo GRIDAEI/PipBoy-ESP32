@@ -18,7 +18,7 @@ extern ESP32Encoder encoder;
 #include "./data/worldMap.h"
 #include "./data/zadania.h"
 #include "./data/dane.h"
-
+#include "./data/radio.h"
 AppScreen* current_screen = nullptr;
 Special objSpecialScreen;
 Status objStatusScreen;
@@ -31,6 +31,7 @@ Rozne objRozneScreen;
 Ammo objAmmoScreen;
 Zadania objZadaniaScreen;
 Dane objDaneScreen;
+Radio objRadioScreen;
 
 Special& getSpecial() {
     static Special instSp;
@@ -98,7 +99,10 @@ Dane& getDane() {
     static Dane instDane;
     return instDane;
 }
-
+Radio& getRadio() {
+    static Radio instRadio;
+    return instRadio;
+}
 AppScreen Status_Screen{
     []() { getStatus().drawScreen(); },
     []() { getStatus().changeCursor(-1); }, // Zmiana na -1 (ruch w górę to zmniejszenie indeksu)
@@ -189,7 +193,12 @@ AppScreen Dane_Screen{
     []() { getDane().down(); },
     []() { getDane().select(); }
 };
-
+AppScreen Radio_Screen{
+    []() { getRadio().drawScreen(); },
+    []() { getRadio().up(); },
+    []() { getRadio().down(); },
+    []() { getRadio().select(); }
+};
 // --- Globalne zmienne nawigacyjne ---
 int section_id = 0; // 0 = STATS, 1 = ITEMS, 2 = DATA
 int screen_id = 0;  // Indeks aktualnej zakładki na dole
@@ -206,7 +215,7 @@ Section ITEMS{
      {"Bron","Odziez", "Wsparcie","Rozne","Amunicja"}, {Bron_Screen,Stroj_Screen,Pomoc_Screen, Rozne_Screen, Ammo_Screen}
 };
 Section DATA{
-     {"Local Map","World Map", "Zadania","Dane","Radio"}, {LocalMap_Screen,WorldMap_Screen,Zadania_Screen, Dane_Screen, Relacje_Screen}
+     {"Local Map","World Map", "Zadania","Dane","Radio"}, {LocalMap_Screen,WorldMap_Screen,Zadania_Screen, Dane_Screen, Radio_Screen}
 };
 
 // --- Tablica przechowująca wskaźniki na wszystkie sekcje ---
